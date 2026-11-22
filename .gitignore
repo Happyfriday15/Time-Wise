@@ -5,3 +5,5 @@ node_modules/
 .expo/
 .DS_Store
 .tools/
+.pnpm-store/
+dist/
