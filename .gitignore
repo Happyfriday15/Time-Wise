@@ -7,3 +7,4 @@ node_modules/
 .tools/
 .pnpm-store/
 dist/
+*.log

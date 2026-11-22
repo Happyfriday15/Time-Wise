@@ -1,62 +1,42 @@
-import React, { useState } from "react";
-import { ActivityIndicator, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { askAi } from "./lib/ai";
+import React, { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { askTimeWise } from "./lib/ai";
+
+const STORAGE_KEY = "time-wise-data-v1";
+const APPS = ["Minecraft", "YouTube", "TikTok", "Other app"];
+const DEFAULT_DATA = { history: [], limits: {}, survey: null };
+function today() { return new Date().toLocaleDateString(); }
 
 export default function App() {
-  const [goal, setGoal] = useState("");
-  const [hours, setHours] = useState("2");
-  const [answer, setAnswer] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function makePlan() {
-    if (!goal.trim()) return setError("Tell me what you want to make time for.");
-    setLoading(true); setError(""); setAnswer("");
-    try {
-      setAnswer(await askAi(`Help me plan ${hours || "2"} hours for this goal: ${goal.trim()}`));
-    } catch (requestError) { setError(requestError.message); }
-    finally { setLoading(false); }
-  }
-
-  const content = (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.eyebrow}>TIME WISE</Text>
-        <Text style={styles.title}>Make time for what matters.</Text>
-        <Text style={styles.subtitle}>A calm little plan for the hours ahead.</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>WHAT DO YOU WANT TO DO?</Text>
-          <TextInput value={goal} onChangeText={setGoal} placeholder="e.g. Finish my project" placeholderTextColor="#9d9a95" style={styles.input} multiline />
-          <Text style={styles.label}>HOW MANY HOURS?</Text>
-          <TextInput value={hours} onChangeText={setHours} keyboardType="decimal-pad" style={styles.input} />
-          <Pressable onPress={makePlan} disabled={loading} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, loading && styles.buttonDisabled]}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Make my plan</Text>}
-          </Pressable>
-        </View>
-        {!!error && <Text style={styles.error}>{error}</Text>}
-        {!!answer && <View style={styles.answer}><Text style={styles.answerLabel}>YOUR TIME-WISE PLAN</Text><Text style={styles.answerText}>{answer}</Text></View>}
-      </ScrollView>
-    </SafeAreaView>
-  );
-
-  return Platform.OS === "web" ? <View style={styles.webStage}><View style={styles.phone}>{content}</View></View> : content;
+  const [data, setData] = useState(DEFAULT_DATA); const [appName, setAppName] = useState("Minecraft"); const [minutes, setMinutes] = useState("30");
+  const [homework, setHomework] = useState(false); const [sleep, setSleep] = useState("8"); const [breaks, setBreaks] = useState("45"); const [selectedApp, setSelectedApp] = useState("Minecraft");
+  const [aiAnswer, setAiAnswer] = useState(""); const [error, setError] = useState(""); const [thinking, setThinking] = useState(false); const [timer, setTimer] = useState(0); const [tab, setTab] = useState("plan");
+  useEffect(() => { AsyncStorage.getItem(STORAGE_KEY).then((saved) => saved && setData(JSON.parse(saved))).catch(() => {}); }, []);
+  useEffect(() => { AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {}); }, [data]);
+  useEffect(() => { if (!timer) return undefined; const id = setInterval(() => setTimer((value) => Math.max(0, value - 1)), 60000); return () => clearInterval(id); }, [timer]);
+  const selectedLimit = data.limits[selectedApp];
+  const usedToday = useMemo(() => data.history.filter((item) => item.date === today() && item.app === selectedApp).reduce((sum, item) => sum + item.minutes, 0), [data.history, selectedApp]);
+  function logSession() { const amount = Math.max(1, Number(minutes) || 0); setData((old) => ({ ...old, history: [{ id: Date.now(), app: appName, minutes: amount, date: today() }, ...old.history] })); setMinutes("30"); }
+  function saveLimit(value) { const amount = Math.max(5, Number(value) || 0); setData((old) => ({ ...old, limits: { ...old.limits, [selectedApp]: amount } })); }
+  function suggestedLimit() { const sleepHours = Number(sleep) || 8; const homeworkDone = homework ? 45 : 75; return Math.max(15, Math.min(120, Math.round((sleepHours >= 8 ? homeworkDone : homeworkDone - 15) / 5) * 5)); }
+  async function askForLimit() { setThinking(true); setError(""); setAiAnswer(""); const survey = { app: selectedApp, homework, sleepHours: Number(sleep) || 0, breakAfterMinutes: Number(breaks) || 0, goal: "Choose a limit that supports my school day" }; try { const answer = await askTimeWise(survey); setAiAnswer(answer); setData((old) => ({ ...old, survey })); } catch (requestError) { setError(requestError.message || "I could not reach the helper. Check Wi-Fi and try again."); } finally { setThinking(false); } }
+  function acceptSuggested() { saveLimit(suggestedLimit()); setAiAnswer(`Okay. I saved ${suggestedLimit()} minutes for ${selectedApp}. You can change it anytime.`); }
+  return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <Text style={styles.eyebrow}>TIME WISE</Text><Text style={styles.title}>Your time, your choice.</Text><Text style={styles.subtitle}>A flexible screen-time plan for school days.</Text>
+    <View style={styles.tabs}><Pressable onPress={() => setTab("plan")} style={[styles.tab, tab === "plan" && styles.activeTab]}><Text style={[styles.tabText, tab === "plan" && styles.activeTabText]}>Plan</Text></Pressable><Pressable onPress={() => setTab("history")} style={[styles.tab, tab === "history" && styles.activeTab]}><Text style={[styles.tabText, tab === "history" && styles.activeTabText]}>History</Text></Pressable></View>
+    {tab === "history" ? <><Section title="1 · See your history" subtitle="Log a short session to make your pattern visible."><AppChips value={appName} onChange={setAppName} /><TextInput value={minutes} onChangeText={setMinutes} keyboardType="number-pad" style={styles.input} placeholder="Minutes" placeholderTextColor="#9b978f" /><Button title="Log this session" onPress={logSession} /></Section><Section title="Recent sessions"><Text style={styles.muted}>{data.history.length ? data.history.slice(0, 8).map((item) => `${item.date} · ${item.app} · ${item.minutes} min`).join("\n") : "No sessions yet. Add one above."}</Text></Section></> : <>
+      <Section title="1 · Pick an app" subtitle="This is a small record for your plan, not a punishment."><AppChips value={selectedApp} onChange={setSelectedApp} /><Text style={styles.status}>{usedToday} minutes logged today · {selectedLimit ? `${selectedLimit}-minute limit` : "no limit yet"}</Text></Section>
+      <Section title="2 · Tell Time Wise about today" subtitle="The AI suggests; you decide. It will not change a limit without your yes."><Row label="Do you have homework today?" value={homework} onChange={setHomework} /><Text style={styles.label}>Hours of sleep you expect</Text><TextInput value={sleep} onChangeText={setSleep} keyboardType="decimal-pad" style={styles.input} /><Text style={styles.label}>Remind me to take a break after (minutes)</Text><TextInput value={breaks} onChangeText={setBreaks} keyboardType="number-pad" style={styles.input} /><Button title={thinking ? "Thinking…" : "Done — ask for a suggestion"} onPress={askForLimit} disabled={thinking} />{thinking && <ActivityIndicator color="#b35d45" style={{ marginTop: 12 }} />}{!!error && <Text style={styles.error}>{error}</Text>}{!!aiAnswer && <View style={styles.answer}><Text style={styles.answerLabel}>TIME WISE SAYS</Text><Text style={styles.answerText}>{aiAnswer}</Text><Button title="Use this suggested limit" onPress={acceptSuggested} /></View>}</Section>
+      <Section title="3 · Make it yours" subtitle="Change the suggestion whenever it feels too strict."><Text style={styles.status}>{selectedApp}: {selectedLimit ? `${selectedLimit} minutes` : "not set"}</Text><TextInput value={String(selectedLimit || suggestedLimit())} onChangeText={saveLimit} keyboardType="number-pad" style={styles.input} /><Button title="Save my limit" onPress={() => saveLimit(selectedLimit || suggestedLimit())} /></Section>
+      <Section title="4 · Break reminder" subtitle={timer ? `${timer} minutes until your break reminder.` : "Start a gentle in-app break timer."}><Button title={timer ? "Timer running" : `Start ${breaks || 45}-minute break timer`} disabled={!!timer} onPress={() => setTimer(Number(breaks) || 45)} /></Section>
+      <Section title="5 · Before your limit"><Text style={styles.status}>{selectedLimit ? `You have ${Math.max(0, selectedLimit - usedToday)} minutes left for ${selectedApp} today.` : "Choose and save a limit to see a reminder here."}</Text></Section>
+    </>}
+    <Text style={styles.footer}>Time Wise gives suggestions. You stay in control.</Text>
+  </ScrollView></SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  webStage: { flex: 1, alignItems: "center", backgroundColor: "#e9e5de" },
-  phone: { width: "min(400px, 100%)", height: "100%", overflow: "hidden", backgroundColor: "#f8f6f2", shadowColor: "#38342e", shadowOpacity: 0.16, shadowRadius: 30, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
-  safe: { flex: 1, backgroundColor: "#f8f6f2" },
-  content: { flexGrow: 1, padding: 28, paddingTop: 54 },
-  eyebrow: { color: "#b26b4d", fontSize: 12, fontWeight: "800", letterSpacing: 2 },
-  title: { color: "#292723", fontSize: 34, lineHeight: 39, fontWeight: "700", marginTop: 18 },
-  subtitle: { color: "#77716a", fontSize: 16, lineHeight: 23, marginTop: 12 },
-  card: { backgroundColor: "#fff", borderRadius: 22, padding: 20, marginTop: 32, shadowColor: "#5e5148", shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
-  label: { color: "#8d857d", fontSize: 11, fontWeight: "800", letterSpacing: 1.2, marginBottom: 9, marginTop: 4 },
-  input: { backgroundColor: "#f5f2ed", borderRadius: 12, color: "#292723", fontSize: 16, minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 18 },
-  button: { alignItems: "center", backgroundColor: "#b26b4d", borderRadius: 13, minHeight: 52, justifyContent: "center", marginTop: 2 },
-  buttonPressed: { opacity: 0.85 }, buttonDisabled: { opacity: 0.6 }, buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  error: { color: "#a33f3f", fontSize: 14, marginTop: 16 },
-  answer: { backgroundColor: "#e8eee6", borderRadius: 22, padding: 22, marginTop: 22 },
-  answerLabel: { color: "#60755e", fontSize: 11, fontWeight: "800", letterSpacing: 1.2, marginBottom: 11 },
-  answerText: { color: "#303b2e", fontSize: 16, lineHeight: 25 },
-});
+function AppChips({ value, onChange }) { return <View style={styles.chips}>{APPS.map((name) => <Pressable key={name} onPress={() => onChange(name)} style={[styles.chip, value === name && styles.chipSelected]}><Text style={styles.chipText}>{name}</Text></Pressable>)}</View>; }
+function Section({ title, subtitle, children }) { return <View style={styles.card}><Text style={styles.sectionTitle}>{title}</Text>{subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}{children}</View>; }
+function Button({ title, onPress, disabled }) { return <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.button, (pressed || disabled) && styles.buttonDim]}><Text style={styles.buttonText}>{title}</Text></Pressable>; }
+function Row({ label, value, onChange }) { return <View style={styles.row}><Text style={styles.rowText}>{label}</Text><Switch value={value} onValueChange={onChange} trackColor={{ false: "#d9d4cc", true: "#c9846b" }} thumbColor="#fff" /></View>; }
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: "#f7f4ef" }, content: { padding: 24, paddingTop: 42, paddingBottom: 40 }, eyebrow: { color: "#b35d45", fontSize: 12, fontWeight: "800", letterSpacing: 2 }, title: { color: "#282622", fontSize: 34, lineHeight: 39, fontWeight: "700", marginTop: 14 }, subtitle: { color: "#716b64", fontSize: 16, lineHeight: 23, marginTop: 10 }, tabs: { flexDirection: "row", marginTop: 24, gap: 8 }, tab: { borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, backgroundColor: "#ebe6df" }, activeTab: { backgroundColor: "#282622" }, tabText: { color: "#716b64", fontWeight: "700" }, activeTabText: { color: "#fff" }, card: { backgroundColor: "#fff", borderRadius: 20, padding: 19, marginTop: 18, shadowColor: "#544b42", shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 }, sectionTitle: { color: "#302d29", fontSize: 18, fontWeight: "800" }, sectionSubtitle: { color: "#817a72", fontSize: 14, lineHeight: 20, marginTop: 6, marginBottom: 16 }, chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12, marginBottom: 14 }, chip: { backgroundColor: "#f2eee8", borderRadius: 15, paddingHorizontal: 12, paddingVertical: 9 }, chipSelected: { backgroundColor: "#f1d3c8" }, chipText: { color: "#51483f", fontSize: 13, fontWeight: "700" }, label: { color: "#817a72", fontSize: 12, fontWeight: "700", marginBottom: 7, marginTop: 8 }, input: { backgroundColor: "#f5f1ec", borderRadius: 11, color: "#302d29", fontSize: 16, minHeight: 46, paddingHorizontal: 13, marginBottom: 12 }, button: { alignItems: "center", backgroundColor: "#b35d45", borderRadius: 12, minHeight: 48, justifyContent: "center", marginTop: 4, paddingHorizontal: 12 }, buttonDim: { opacity: 0.55 }, buttonText: { color: "#fff", fontSize: 15, fontWeight: "800" }, status: { color: "#655e56", fontSize: 14, lineHeight: 20, marginTop: 9 }, row: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }, rowText: { color: "#4b453f", fontSize: 15, flex: 1, paddingRight: 12 }, answer: { backgroundColor: "#e7efe5", borderRadius: 15, padding: 15, marginTop: 16 }, answerLabel: { color: "#557053", fontSize: 11, fontWeight: "800", letterSpacing: 1.2, marginBottom: 8 }, answerText: { color: "#30412e", fontSize: 15, lineHeight: 22, marginBottom: 10 }, error: { color: "#a63f3f", fontSize: 14, lineHeight: 20, marginTop: 14 }, muted: { color: "#655e56", fontSize: 14, lineHeight: 26, marginTop: 13 }, footer: { color: "#938b82", fontSize: 12, textAlign: "center", marginTop: 24 } });
