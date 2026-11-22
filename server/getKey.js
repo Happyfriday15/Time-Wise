@@ -9,7 +9,7 @@ function loadLocalEnv() {
   const file = path.join(__dirname, "..", ".env");
   if (!fs.existsSync(file)) return;
 
-  for (const line of fs.readFileSync(file, "utf8").split(/\\r?\\n/)) {
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
     const match = line.match(/^(KEYGEN_URL|KEYGEN_TOKEN)=(.*)$/);
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2];
   }
