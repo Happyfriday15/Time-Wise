@@ -11,7 +11,7 @@ The helper reads the OpenAI key only through `server/getKey.js`. The app never r
 
 ## SDK and checks
 
-The app uses Expo SDK 58 because Expo Go on the phone supports SDK 58. `npx expo install --fix` was run. `npx expo-doctor` passes after the app name was corrected.
+The app uses Expo SDK 58 because Expo Go on the phone supports SDK 58. `npx expo install --fix` was run. Web support uses `react-dom`, `react-native-web`, and `@expo/metro-runtime`. The Vercel build command is `npx expo export -p web`, and that export succeeds locally. `npx expo-doctor` passes after the app name was corrected.
 
 ## What is done
 
