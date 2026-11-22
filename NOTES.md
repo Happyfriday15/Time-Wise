@@ -15,7 +15,7 @@ The app uses Expo SDK 58 because Expo Go on the phone supports SDK 58. `npx expo
 
 ## What is done
 
-- History: manually log time used for an app and see recent sessions. Data is saved on the phone.
+- History: manually log time used for listed apps or type a custom app name, then see daily totals. Data is saved on the phone. Automatic device-wide tracking is not available in this Expo Go MVP.
 - Personalized limits: answer a short daily checklist about homework, sleep, and break timing.
 - AI suggestion: the helper sends the checklist and the AI instructions from `BRIEF.md` to the model `gpt-5.6-luna`.
 - Consent and safety: the AI suggests; the user must choose “Use this suggested limit.” The user can change it.
