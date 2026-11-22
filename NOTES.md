@@ -7,7 +7,7 @@
 3. In another terminal, start Expo for the phone: `npx expo start --lan`.
 4. Scan the Expo QR code with Expo Go. The helper uses this computer address: `http://192.168.0.94:3002/ai`.
 
-The helper reads the OpenAI key only through `server/getKey.js`. The app never receives the key or Keygen token. `.env` is ignored by Git. If the computer’s Wi-Fi address changes, update the helper address in `lib/ai.js` and restart Expo. Use LAN mode; a tunnel cannot reach a helper that is only on the home network.
+The local helper reads the OpenAI key only through `server/getKey.js`. The deployed website sends checklist requests to `/api/ai`; that Vercel function also reads the key only through `server/getKey.js` and loads the AI instructions from `BRIEF.md`. The app never receives the key or Keygen token. `.env` is ignored by Git.
 
 ## SDK and checks
 
